@@ -7,6 +7,16 @@ let downPressed = false;
 let leftPressed = false;
 let rightPressed = false;
 
+// Leaderboard data
+let leaderboard = [
+  { name: "Chris", score: 100 },
+  { name: "Mark", score: 75 },
+  { name: "Tom", score: 50 },
+  { name: "John", score: 45 },
+  { name: "John2", score: 40 },
+  { name: "John3", score: 35 },
+];
+
 // Game elements
 const main = document.querySelector("main");
 const scoreElement = document.querySelector(".score p");
@@ -14,7 +24,7 @@ const livesElement = document.querySelector(".lives ul");
 const startDiv = document.querySelector(".startDiv");
 const startButton = document.querySelector(".start");
 
-//Player = 2, Wall = 1, Enemy = 3, Point = 0
+//Player = 2, Wall = 1, Enemy = 3, Point = 0, Empty = -1
 let maze = [
   [1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
   [1, 2, 0, 1, 0, 0, 0, 0, 3, 1],
@@ -97,10 +107,17 @@ function renderMaze() {
         case 3:
           block.classList.add("enemy");
           break;
-        default:
+        case 0:
           block.classList.add("point");
           block.style.height = "1vh";
           block.style.width = "1vh";
+          break;
+        case -1:
+          // Empty space (eaten dot) - no special styling
+          break;
+        default:
+          // Fallback for any other values
+          break;
       }
 
       main.appendChild(block);
@@ -123,6 +140,53 @@ function updateLives() {
       life.style.display = "none";
     }
   });
+}
+
+// Update leaderboard display
+function updateLeaderboard() {
+  const leaderboardElement = document.querySelector(".leaderboard ol");
+  leaderboardElement.innerHTML = "";
+
+  leaderboard.forEach((entry, index) => {
+    const li = document.createElement("li");
+    li.textContent = `${entry.name}........${entry.score}`;
+    leaderboardElement.appendChild(li);
+  });
+}
+
+// Check if score qualifies for leaderboard
+function checkLeaderboard() {
+  const minScore = leaderboard[leaderboard.length - 1].score;
+  if (score > minScore) {
+    const playerName = prompt(
+      `Congratulations! You scored ${score} points and made it to the leaderboard! Enter your name:`
+    );
+    if (playerName && playerName.trim()) {
+      // Add new score
+      leaderboard.push({ name: playerName.trim(), score: score });
+
+      // Sort by score (highest first)
+      leaderboard.sort((a, b) => b.score - a.score);
+
+      // Keep only top 6 scores
+      leaderboard = leaderboard.slice(0, 6);
+
+      // Update display
+      updateLeaderboard();
+
+      // Save to localStorage
+      localStorage.setItem("pacman-leaderboard", JSON.stringify(leaderboard));
+    }
+  }
+}
+
+// Load leaderboard from localStorage
+function loadLeaderboard() {
+  const saved = localStorage.getItem("pacman-leaderboard");
+  if (saved) {
+    leaderboard = JSON.parse(saved);
+  }
+  updateLeaderboard();
 }
 
 // Check if position is valid (not a wall)
@@ -159,13 +223,15 @@ function movePlayer(direction) {
   }
 
   if (isValidPosition(newRow, newCol)) {
-    // Clear old player position
-    maze[playerRow][playerCol] = 0;
-
-    // Check if there's a point to collect
+    // Check if there's a point to collect BEFORE moving
     if (maze[newRow][newCol] === 0) {
       score += 10;
       updateScore();
+    }
+
+    // Clear old player position - set to empty space (-1) if it was a point
+    if (maze[playerRow][playerCol] === 2) {
+      maze[playerRow][playerCol] = -1; // Empty space where player was
     }
 
     // Move player
@@ -219,8 +285,8 @@ function moveEnemies() {
       return; // Skip this move
     }
 
-    // Move enemy
-    maze[enemy.row][enemy.col] = 0;
+    // Move enemy - set old position to empty space
+    maze[enemy.row][enemy.col] = -1;
     enemy.row = newRow;
     enemy.col = newCol;
     maze[enemy.row][enemy.col] = 3;
@@ -264,7 +330,7 @@ function loseLife() {
     gameOver();
   } else {
     // Reset player position
-    maze[playerRow][playerCol] = 0;
+    maze[playerRow][playerCol] = -1; // Set to empty space
     playerRow = 1;
     playerCol = 1;
     maze[playerRow][playerCol] = 2;
@@ -284,6 +350,7 @@ function loseLife() {
 // Game over
 function gameOver() {
   gameRunning = false;
+  checkLeaderboard();
   alert("Game Over! Final Score: " + score);
   startDiv.style.display = "flex";
 }
@@ -291,6 +358,7 @@ function gameOver() {
 // Game win
 function gameWin() {
   gameRunning = false;
+  checkLeaderboard();
   alert("Congratulations! You won! Final Score: " + score);
   startDiv.style.display = "flex";
 }
@@ -346,6 +414,7 @@ function gameLoop() {
 
 // Initialize everything
 function init() {
+  loadLeaderboard();
   renderMaze();
   updateScore();
   updateLives();
